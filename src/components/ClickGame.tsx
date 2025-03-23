@@ -222,37 +222,37 @@ const ClickGame: React.FC = () => {
 
         // パワー表示テキストを条件分岐
         if (gameState.isFullPower) {
-            // フルパワー時の点滅テキスト
+            // フルパワー時の点滅テキスト（画面中央に大きく）
             if (Math.floor(Date.now() / 200) % 2 === 0) {  // 点滅を早く
                 drawPixelText(
                     ctx,
                     'FULLY CHARGED!',
-                    meterX + meterWidth / 2,
-                    meterY - 40,
-                    24  // サイズを大きく
+                    centerX,
+                    ctx.canvas.height * 0.4,  // 画面の上部40%の位置
+                    48  // さらに大きく
                 );
                 drawPixelText(
                     ctx,
                     'PREPARE TO LAUNCH',
-                    meterX + meterWidth / 2,
-                    meterY - 80,
-                    16
+                    centerX,
+                    ctx.canvas.height * 0.4 + 60,  // その下に
+                    32
                 );
             }
 
-            // カウントダウン表示
+            // カウントダウン表示（さらに大きく）
             const remainingTime = 3 - Math.floor((Date.now() - gameState.fullPowerTime) / 1000);
             if (remainingTime > 0) {
                 drawPixelText(
                     ctx,
                     remainingTime.toString(),
                     centerX,
-                    ctx.canvas.height / 2,
-                    48  // 大きなサイズ
+                    ctx.canvas.height * 0.6,  // 画面の下部60%の位置
+                    96  // かなり大きく
                 );
             }
         } else {
-            // 通常時のテキスト
+            // 通常時のテキスト（メーター横）
             drawPixelText(
                 ctx,
                 `FUEL: ${Math.floor(gameState.power)}%`,
