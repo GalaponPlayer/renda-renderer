@@ -10,6 +10,8 @@ interface GameState {
     particles: Particle[];
     stars: Star[];
     clouds: Cloud[];
+    isFullPower: boolean;
+    fullPowerTime: number;
 }
 
 interface Particle {
@@ -57,7 +59,9 @@ const ClickGame: React.FC = () => {
             width: Math.random() * 100 + 50,
             height: Math.random() * 40 + 20,
             speed: Math.random() * 2 + 1
-        }))
+        })),
+        isFullPower: false,
+        fullPowerTime: 0
     });
 
     useEffect(() => {
@@ -82,11 +86,13 @@ const ClickGame: React.FC = () => {
 
                 switch (gameState.scene) {
                     case 'power':
-                        setGameState(prev => ({
-                            ...prev,
-                            power: Math.min(prev.power + 2, 100),
-                            scene: prev.power >= 98 ? 'launch' : 'power'
-                        }));
+                        if (!gameState.isFullPower) {
+                            setGameState(prev => ({
+                                ...prev,
+                                power: Math.min(prev.power + 2, 100),
+                                isFullPower: prev.power >= 98
+                            }));
+                        }
                         break;
 
                     case 'launch':
@@ -110,7 +116,20 @@ const ClickGame: React.FC = () => {
 
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [gameState.scene]);
+    }, [gameState.scene, gameState.isFullPower]);
+
+    useEffect(() => {
+        if (gameState.isFullPower) {
+            const timer = setTimeout(() => {
+                setGameState(prev => ({
+                    ...prev,
+                    scene: 'launch'
+                }));
+            }, 3000); // 3秒後に発射シーンへ
+
+            return () => clearTimeout(timer);
+        }
+    }, [gameState.isFullPower]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -159,23 +178,134 @@ const ClickGame: React.FC = () => {
         ctx.fillStyle = '#4A593D';
         ctx.fillRect(0, baseY, ctx.canvas.width, ctx.canvas.height - baseY);
 
-        // パワーメーター
-        const meterWidth = 300;
-        const meterHeight = 30;
-        const meterX = (ctx.canvas.width - meterWidth) / 2;
-        const meterY = 50;
+        // 燃料メーター（縦型）のサイズと位置を調整
+        const meterHeight = ctx.canvas.height * 0.5; // 高さを50%に調整
+        const meterWidth = 40;
+        const meterX = 80;  // 左端からの距離を増加
+        const meterY = (ctx.canvas.height - meterHeight) / 2;  // 縦方向の中央揃え
 
+        // メーターの外枠
         ctx.fillStyle = '#333333';
+        ctx.fillRect(meterX - 2, meterY - 2, meterWidth + 4, meterHeight + 4);
+
+        // メーターの背景（目盛り）
+        ctx.fillStyle = '#222222';
         ctx.fillRect(meterX, meterY, meterWidth, meterHeight);
-        ctx.fillStyle = '#FF4444';
-        ctx.fillRect(meterX, meterY, meterWidth * (gameState.power / 100), meterHeight);
+
+        // 目盛りの描画
+        for (let i = 0; i <= 10; i++) {
+            const y = meterY + (meterHeight * (1 - i / 10));
+            ctx.fillStyle = '#444444';
+            ctx.fillRect(meterX - 10, y, 10, 2);
+
+            // 目盛りの数値（位置調整）
+            drawPixelText(ctx, `${i * 10}`, meterX - 25, y, 12);
+        }
+
+        // 燃料レベル（下から上に向かって満タンになる）
+        const fuelHeight = meterHeight * (gameState.power / 100);
+        const gradient = ctx.createLinearGradient(0, meterY + meterHeight - fuelHeight, 0, meterY + meterHeight);
+        gradient.addColorStop(0, '#FF4400');
+        gradient.addColorStop(0.5, '#FF8800');
+        gradient.addColorStop(1, '#FFCC00');
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(
+            meterX,
+            meterY + meterHeight - fuelHeight,
+            meterWidth,
+            fuelHeight
+        );
 
         // ロケット
         drawRocket(ctx, centerX, baseY - 80);
 
-        // テキスト
-        drawPixelText(ctx, `POWER: ${Math.floor(gameState.power)}%`, centerX, meterY + 60);
-        drawPixelText(ctx, 'MASH SPACE!', centerX, meterY + 100);
+        // パワー表示テキストを条件分岐
+        if (gameState.isFullPower) {
+            // フルパワー時の点滅テキスト
+            if (Math.floor(Date.now() / 200) % 2 === 0) {  // 点滅を早く
+                drawPixelText(
+                    ctx,
+                    'FULLY CHARGED!',
+                    meterX + meterWidth / 2,
+                    meterY - 40,
+                    24  // サイズを大きく
+                );
+                drawPixelText(
+                    ctx,
+                    'PREPARE TO LAUNCH',
+                    meterX + meterWidth / 2,
+                    meterY - 80,
+                    16
+                );
+            }
+
+            // カウントダウン表示
+            const remainingTime = 3 - Math.floor((Date.now() - gameState.fullPowerTime) / 1000);
+            if (remainingTime > 0) {
+                drawPixelText(
+                    ctx,
+                    remainingTime.toString(),
+                    centerX,
+                    ctx.canvas.height / 2,
+                    48  // 大きなサイズ
+                );
+            }
+        } else {
+            // 通常時のテキスト
+            drawPixelText(
+                ctx,
+                `FUEL: ${Math.floor(gameState.power)}%`,
+                meterX + meterWidth / 2,
+                meterY - 40
+            );
+            drawPixelText(
+                ctx,
+                'MASH SPACE!',
+                meterX + meterWidth / 2,
+                meterY - 70
+            );
+        }
+
+        // 警告表示（フルパワー時は表示しない）
+        if (gameState.power >= 80 && !gameState.isFullPower) {
+            if (Math.floor(Date.now() / 500) % 2 === 0) {
+                drawPixelText(
+                    ctx,
+                    'WARNING!',
+                    meterX + meterWidth / 2,
+                    meterY + meterHeight + 40,
+                    20
+                );
+
+                ctx.fillStyle = '#FF0000';
+                ctx.fillRect(
+                    meterX - 10,
+                    meterY + meterHeight + 60,
+                    meterWidth + 20,
+                    4
+                );
+            }
+        }
+
+        // フルパワー時のエフェクト
+        if (gameState.isFullPower) {
+            // 画面全体を明滅させる
+            if (Math.floor(Date.now() / 200) % 2 === 0) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+                ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            }
+
+            // エネルギーパーティクル
+            for (let i = 0; i < 5; i++) {
+                const angle = Date.now() * 0.001 + i * Math.PI * 0.4;
+                const x = centerX + Math.cos(angle) * 50;
+                const y = baseY - 80 + Math.sin(angle) * 50;
+
+                ctx.fillStyle = '#FFFF00';
+                ctx.fillRect(x - 2, y - 2, 4, 4);
+            }
+        }
     };
 
     const drawLaunchScene = (ctx: CanvasRenderingContext2D, centerX: number, baseY: number) => {
