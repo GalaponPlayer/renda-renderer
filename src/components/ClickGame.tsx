@@ -685,59 +685,69 @@ const ClickGame: React.FC = () => {
             ctx.fillStyle = '#000022';
             ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
+            // 星を描画（背景）
+            const starCount = 200;
+            for (let i = 0; i < starCount; i++) {
+                const x = (gameState.stars[i]?.x || Math.random() * ctx.canvas.width);
+                const y = (gameState.stars[i]?.y || Math.random() * ctx.canvas.height);
+                const brightness = gameState.stars[i]?.brightness || Math.random();
+
+                if (brightness > 0.8) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${brightness * 0.9})`;
+                    ctx.fillRect(x - 1, y, 3, 1);
+                    ctx.fillRect(x, y - 1, 1, 3);
+                } else {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${brightness * 0.7})`;
+                    ctx.fillRect(x, y, 1, 1);
+                }
+            }
+
             // ロケットの固定位置（画面中央よりやや上）
             const rocketY = ctx.canvas.height * 0.4;
 
-            // 大気圏の層の定義（順序はそのまま）
+            // 大気圏の層の定義
             const layers = [
-                { color: '#000044', y: 0 },      // 宇宙空間
-                { color: '#000088', y: 0.2 },    // 外気圏
-                { color: '#0044CC', y: 0.4 },    // 中間圏上部
-                { color: '#0066FF', y: 0.6 },    // 中間圏下部
-                { color: '#4488FF', y: 0.8 },    // 成層圏上部
-                { color: '#99CCFF', y: 1.0 },    // 成層圏下部
-                { color: '#FF99AA', y: 1.2 }     // 対流圏
+                { color: '#000044', y: 0, mixColor: '#000066' },      // 宇宙空間
+                { color: '#000088', y: 0.2, mixColor: '#0022AA' },    // 外気圏
+                { color: '#0044CC', y: 0.4, mixColor: '#0066DD' },    // 中間圏上部
+                { color: '#0066FF', y: 0.6, mixColor: '#4488FF' },    // 中間圏下部
+                { color: '#4488FF', y: 0.8, mixColor: '#66AAFF' },    // 成層圏上部
+                { color: '#99CCFF', y: 1.0, mixColor: '#AADDFF' },    // 成層圏下部
+                { color: '#FF99AA', y: 1.2, mixColor: '#FFAACC' }     // 対流圏
             ];
 
-            // 層の移動速度を15倍に爆増
             const layerOffset = -(gameState.rocketY / 25000) * ctx.canvas.height * 15;
 
-            // 各層を描画（下から順に描画して重ねる）
+            // 各層を描画
             layers.forEach(layer => {
                 const baseY = ctx.canvas.height * layer.y - layerOffset;
 
-                // 地球の曲率を表現する円弧を描画
-                ctx.beginPath();
-                const radius = ctx.canvas.width * 1.5;
-                const centerArcY = baseY + radius + 100;
+                // 複数の円弧を描画して層をより複雑に
+                for (let i = 0; i < 3; i++) {
+                    const noiseOffset = Math.sin(Date.now() * 0.001 + i * Math.PI * 2 / 3) * 20;
+                    const radius = ctx.canvas.width * 1.5 + noiseOffset;
+                    const centerArcY = baseY + radius + 100 + Math.sin(Date.now() * 0.0005 + i) * 15;
 
-                ctx.fillStyle = layer.color;
-                ctx.beginPath();
-                ctx.arc(centerX, centerArcY, radius, Math.PI, Math.PI * 2);
-                ctx.lineTo(ctx.canvas.width, ctx.canvas.height);
-                ctx.lineTo(0, ctx.canvas.height);
-                ctx.fill();
+                    ctx.beginPath();
+                    ctx.fillStyle = i === 1 ? layer.color : layer.mixColor;
+                    ctx.globalAlpha = 0.7;  // 重ねる層を半透明に
+
+                    // 少しずつ異なる円弧を描画
+                    ctx.arc(
+                        centerX + Math.sin(Date.now() * 0.001 + i) * 10,
+                        centerArcY,
+                        radius + Math.cos(Date.now() * 0.002 + i) * 5,
+                        Math.PI,
+                        Math.PI * 2
+                    );
+                    ctx.lineTo(ctx.canvas.width, ctx.canvas.height);
+                    ctx.lineTo(0, ctx.canvas.height);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1.0;  // 透明度をリセット
             });
 
-            // 星を描画（上空ほど多く）
-            const starVisibility = Math.max(0, (gameState.rocketY / 25000));
-            if (starVisibility > 0) {
-                gameState.stars.forEach(star => {
-                    if (star.y < rocketY && Math.random() > 0.5) {
-                        const alpha = star.brightness * starVisibility;
-                        if (star.brightness > 0.9) {
-                            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
-                            ctx.fillRect(star.x - 1, star.y, 3, 1);
-                            ctx.fillRect(star.x, star.y - 1, 1, 3);
-                        } else {
-                            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
-                            ctx.fillRect(star.x, star.y, 1, 1);
-                        }
-                    }
-                });
-            }
-
-            // ロケットを固定位置に描画
+            // ロケットを描画
             drawRocket(ctx, centerX, rocketY);
 
             // 情報表示
