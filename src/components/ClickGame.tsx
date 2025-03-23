@@ -12,6 +12,8 @@ interface GameState {
     clouds: Cloud[];
     isFullPower: boolean;
     fullPowerTime: number;
+    launchStartTime: number;
+    isLaunching: boolean;
 }
 
 interface Particle {
@@ -61,7 +63,9 @@ const ClickGame: React.FC = () => {
             speed: Math.random() * 2 + 1
         })),
         isFullPower: false,
-        fullPowerTime: 0
+        fullPowerTime: 0,
+        launchStartTime: 0,
+        isLaunching: false
     });
 
     useEffect(() => {
@@ -96,11 +100,14 @@ const ClickGame: React.FC = () => {
                         break;
 
                     case 'launch':
-                        setGameState(prev => ({
-                            ...prev,
-                            rocketY: prev.rocketY + 10,
-                            scene: prev.rocketY >= 300 ? 'atmosphere' : 'launch'
-                        }));
+                        if (Date.now() - gameState.launchStartTime >= 3000) {
+                            setGameState(prev => ({
+                                ...prev,
+                                isLaunching: true,
+                                rocketY: prev.rocketY + 10,
+                                scene: prev.rocketY >= 300 ? 'atmosphere' : 'launch'
+                            }));
+                        }
                         break;
 
                     case 'atmosphere':
@@ -116,16 +123,18 @@ const ClickGame: React.FC = () => {
 
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [gameState.scene, gameState.isFullPower]);
+    }, [gameState.scene, gameState.launchStartTime]);
 
     useEffect(() => {
         if (gameState.isFullPower) {
             const timer = setTimeout(() => {
                 setGameState(prev => ({
                     ...prev,
-                    scene: 'launch'
+                    scene: 'launch',
+                    launchStartTime: Date.now(),
+                    isLaunching: false
                 }));
-            }, 3000); // 3秒後に発射シーンへ
+            }, 3000);
 
             return () => clearTimeout(timer);
         }
@@ -173,10 +182,56 @@ const ClickGame: React.FC = () => {
         animate();
     }, [gameState]);
 
+    // 発射台描画関数を共通化
+    const drawLaunchPad = (ctx: CanvasRenderingContext2D, centerX: number, baseY: number) => {
+        const padWidth = 160;
+        const padHeight = 200;
+
+        // メインの支柱
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(centerX - 50, baseY - padHeight, 12, padHeight);
+        ctx.fillRect(centerX + 38, baseY - padHeight, 12, padHeight);
+
+        // 支柱の装飾
+        for (let h = 0; h < padHeight; h += 20) {
+            ctx.fillStyle = '#444444';
+            ctx.fillRect(centerX - 54, baseY - h - 10, 20, 4);
+            ctx.fillRect(centerX + 34, baseY - h - 10, 20, 4);
+        }
+
+        // 横方向の補強材
+        for (let y = 0; y < 5; y++) {
+            const barY = baseY - (padHeight * (y + 1) / 5);
+
+            // メインの横バー
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(centerX - 50, barY, 100, 8);
+
+            // 装飾パーツ
+            ctx.fillStyle = '#777777';
+            for (let x = -40; x <= 40; x += 20) {
+                ctx.fillRect(centerX + x - 5, barY - 4, 10, 16);
+            }
+        }
+
+        // 発射台の基部
+        ctx.fillStyle = '#444444';
+        ctx.fillRect(centerX - 70, baseY - 20, 140, 20);
+
+        // 基部の装飾
+        ctx.fillStyle = '#333333';
+        for (let x = -60; x <= 60; x += 20) {
+            ctx.fillRect(centerX + x - 5, baseY - 24, 10, 28);
+        }
+    };
+
     const drawPowerScene = (ctx: CanvasRenderingContext2D, centerX: number, baseY: number) => {
         // 地面
         ctx.fillStyle = '#4A593D';
         ctx.fillRect(0, baseY, ctx.canvas.width, ctx.canvas.height - baseY);
+
+        // 発射台を追加
+        drawLaunchPad(ctx, centerX, baseY);
 
         // 燃料メーター（縦型）のサイズと位置を調整
         const meterHeight = ctx.canvas.height * 0.5; // 高さを50%に調整
@@ -309,19 +364,137 @@ const ClickGame: React.FC = () => {
     };
 
     const drawLaunchScene = (ctx: CanvasRenderingContext2D, centerX: number, baseY: number) => {
-        // 発射台と地面の描画
+        // 地面の描画
         ctx.fillStyle = '#4A593D';
         for (let x = 0; x < ctx.canvas.width; x += 8) {
             const groundHeight = 100 + Math.sin(x * 0.05) * 10;
             ctx.fillRect(x, ctx.canvas.height - groundHeight, 8, groundHeight);
         }
 
-        // ロケット
-        drawRocket(ctx, centerX, baseY - 80 - gameState.rocketY);
+        // 発射台
+        drawLaunchPad(ctx, centerX, baseY);
 
-        // テキスト
-        drawPixelText(ctx, `HEIGHT: ${Math.floor(gameState.rocketY)}m`, centerX, 50);
-        drawPixelText(ctx, 'KEEP MASHING!', centerX, 90);
+        // 煙と炎のエフェクト（より雲のような見た目に）
+        if (gameState.isLaunching) {
+            // 中央の濃い煙（もこもこした雲のような）
+            for (let i = 0; i < 30; i++) {
+                const angle = (Math.random() * Math.PI) / 2 + Math.PI / 4;
+                const distance = Math.random() * 100;
+                const smokeBaseX = centerX + Math.cos(angle) * distance;
+                const smokeBaseY = baseY - 40 + Math.sin(angle) * distance;
+
+                // 一つの煙粒子に複数の白い円を重ねて雲のような見た目に
+                for (let j = 0; j < 3; j++) {
+                    const offsetX = Math.random() * 20 - 10;
+                    const offsetY = Math.random() * 20 - 10;
+                    const size = Math.random() * 20 + 15;
+
+                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.4 + 0.2})`;
+                    ctx.beginPath();
+                    ctx.arc(
+                        smokeBaseX + offsetX,
+                        smokeBaseY + offsetY + gameState.rocketY,
+                        size,
+                        0,
+                        Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+            }
+
+            // 外側の薄い煙（より広がりのある雲）
+            for (let i = 0; i < 25; i++) {
+                const angle = (Math.random() * Math.PI) / 1.5 + Math.PI / 6;
+                const distance = Math.random() * 200 + 50;
+                const smokeBaseX = centerX + Math.cos(angle) * distance;
+                const smokeBaseY = baseY - 20 + Math.sin(angle) * distance;
+
+                // 複数の円を重ねて自然な雲の形に
+                for (let j = 0; j < 4; j++) {
+                    const offsetX = Math.random() * 30 - 15;
+                    const offsetY = Math.random() * 30 - 15;
+                    const size = Math.random() * 25 + 20;
+
+                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.2 + 0.1})`;
+                    ctx.beginPath();
+                    ctx.arc(
+                        smokeBaseX + offsetX,
+                        smokeBaseY + offsetY + gameState.rocketY,
+                        size,
+                        0,
+                        Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+            }
+
+            // 炎のエフェクト（より明るく）
+            for (let i = 0; i < 15; i++) {
+                const angle = (Math.random() * Math.PI) / 3 + Math.PI / 3;
+                const distance = Math.random() * 40;
+                const fireX = centerX + Math.cos(angle) * distance;
+                const fireY = baseY - 60 + Math.sin(angle) * distance;
+                const fireSize = Math.random() * 10 + 5;
+
+                ctx.fillStyle = Math.random() > 0.5 ? '#FFFF00' : '#FF8800';
+                ctx.beginPath();
+                ctx.arc(
+                    fireX,
+                    fireY + gameState.rocketY,
+                    fireSize,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+            }
+
+            // ロケット
+            drawRocket(ctx, centerX, baseY - 80 - gameState.rocketY);
+        } else {
+            // 発射前のロケット
+            drawRocket(ctx, centerX, baseY - 80);
+        }
+
+        // カウントダウンと発射シーケンス
+        const timeSinceLaunch = Date.now() - gameState.launchStartTime;
+        const countdownPhase = Math.floor(timeSinceLaunch / 1000);
+
+        if (countdownPhase < 3) {
+            // カウントダウン表示
+            const number = 3 - countdownPhase;
+            drawPixelText(
+                ctx,
+                number.toString(),
+                centerX,
+                ctx.canvas.height * 0.4,
+                96
+            );
+        } else if (!gameState.isLaunching) {
+            // 発射開始
+            if (Math.floor(Date.now() / 200) % 2 === 0) {
+                drawPixelText(
+                    ctx,
+                    'LAUNCH!',
+                    centerX,
+                    ctx.canvas.height * 0.4,
+                    64
+                );
+            }
+        }
+
+        // 情報表示
+        drawPixelText(
+            ctx,
+            `HEIGHT: ${Math.floor(gameState.rocketY)}m`,
+            centerX,
+            50
+        );
+        drawPixelText(
+            ctx,
+            'KEEP MASHING!',
+            centerX,
+            90
+        );
     };
 
     const drawAtmosphereScene = (ctx: CanvasRenderingContext2D, centerX: number) => {
