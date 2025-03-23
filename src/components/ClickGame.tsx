@@ -413,14 +413,14 @@ const ClickGame: React.FC = () => {
         // 発射台
         drawLaunchPad(ctx, centerX, baseY);
 
-        // 煙と炎のエフェクト（より雲のような見た目に）
         if (gameState.isLaunching) {
             // 中央の濃い煙（もこもこした雲のような）
             for (let i = 0; i < 30; i++) {
                 const angle = (Math.random() * Math.PI) / 2 + Math.PI / 4;
                 const distance = Math.random() * 100;
                 const smokeBaseX = centerX + Math.cos(angle) * distance;
-                const smokeBaseY = baseY - 40 + Math.sin(angle) * distance;
+                // ロケットの下部から煙を出す
+                const smokeBaseY = baseY - 80 - gameState.rocketY + 64 + Math.sin(angle) * distance;
 
                 // 一つの煙粒子に複数の白い円を重ねて雲のような見た目に
                 for (let j = 0; j < 3; j++) {
@@ -432,7 +432,7 @@ const ClickGame: React.FC = () => {
                     ctx.beginPath();
                     ctx.arc(
                         smokeBaseX + offsetX,
-                        smokeBaseY + offsetY + gameState.rocketY,
+                        smokeBaseY + offsetY + Math.random() * 20,  // より自然な広がり
                         size,
                         0,
                         Math.PI * 2
@@ -446,7 +446,8 @@ const ClickGame: React.FC = () => {
                 const angle = (Math.random() * Math.PI) / 1.5 + Math.PI / 6;
                 const distance = Math.random() * 200 + 50;
                 const smokeBaseX = centerX + Math.cos(angle) * distance;
-                const smokeBaseY = baseY - 20 + Math.sin(angle) * distance;
+                // ロケットの下部から煙を出す
+                const smokeBaseY = baseY - 80 - gameState.rocketY + 64 + Math.sin(angle) * distance;
 
                 // 複数の円を重ねて自然な雲の形に
                 for (let j = 0; j < 4; j++) {
@@ -458,7 +459,7 @@ const ClickGame: React.FC = () => {
                     ctx.beginPath();
                     ctx.arc(
                         smokeBaseX + offsetX,
-                        smokeBaseY + offsetY + gameState.rocketY,
+                        smokeBaseY + offsetY + Math.random() * 30,  // より自然な広がり
                         size,
                         0,
                         Math.PI * 2
@@ -467,19 +468,19 @@ const ClickGame: React.FC = () => {
                 }
             }
 
-            // 炎のエフェクト（より明るく）
+            // 炎のエフェクト（ロケットの直下に）
             for (let i = 0; i < 15; i++) {
                 const angle = (Math.random() * Math.PI) / 3 + Math.PI / 3;
                 const distance = Math.random() * 40;
                 const fireX = centerX + Math.cos(angle) * distance;
-                const fireY = baseY - 60 + Math.sin(angle) * distance;
+                const fireY = baseY - 80 - gameState.rocketY + 64 + Math.sin(angle) * distance;  // ロケットの底部から
                 const fireSize = Math.random() * 10 + 5;
 
                 ctx.fillStyle = Math.random() > 0.5 ? '#FFFF00' : '#FF8800';
                 ctx.beginPath();
                 ctx.arc(
                     fireX,
-                    fireY + gameState.rocketY,
+                    fireY,
                     fireSize,
                     0,
                     Math.PI * 2
@@ -487,7 +488,7 @@ const ClickGame: React.FC = () => {
                 ctx.fill();
             }
 
-            // ロケット
+            // ロケットを煙の前に描画
             drawRocket(ctx, centerX, baseY - 80 - gameState.rocketY);
         } else {
             // 発射前のロケット
