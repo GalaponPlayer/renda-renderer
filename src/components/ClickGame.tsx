@@ -681,31 +681,64 @@ const ClickGame: React.FC = () => {
                 }
             }
         } else {
-            // 3秒後から徐々に大気圏の色に変化
-            const transitionProgress = Math.min((timeSinceStart - 3000) / 2000, 1);
-
-            // 大気圏のグラデーション（地上から成層圏へ）
-            const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
-
-            if (transitionProgress < 1) {
-                // 地上の色から徐々に変化
-                gradient.addColorStop(0, `rgba(0, 0, 51, ${transitionProgress})`);
-                gradient.addColorStop(0.3, `rgba(0, 0, 102, ${transitionProgress})`);
-                gradient.addColorStop(0.6, `rgba(51, 102, 204, ${transitionProgress})`);
-                gradient.addColorStop(0.8, `rgba(102, 204, 255, ${transitionProgress})`);
-                gradient.addColorStop(1, `rgba(153, 255, 255, ${transitionProgress})`);
-
-                // 地上の背景を維持
-                ctx.fillStyle = '#111111';
-                ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-            }
-
-            // グラデーションを描画
-            ctx.fillStyle = gradient;
+            // 背景は漆黒の宇宙
+            ctx.fillStyle = '#000022';
             ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-            // 通常の大気圏突入シーン
-            drawRocket(ctx, centerX, ctx.canvas.height - 150 - gameState.rocketY);
+            // ロケットの固定位置（画面中央よりやや上）
+            const rocketY = ctx.canvas.height * 0.4;
+
+            // 大気圏の層の定義（順序はそのまま）
+            const layers = [
+                { color: '#000044', y: 0 },      // 宇宙空間
+                { color: '#000088', y: 0.2 },    // 外気圏
+                { color: '#0044CC', y: 0.4 },    // 中間圏上部
+                { color: '#0066FF', y: 0.6 },    // 中間圏下部
+                { color: '#4488FF', y: 0.8 },    // 成層圏上部
+                { color: '#99CCFF', y: 1.0 },    // 成層圏下部
+                { color: '#FF99AA', y: 1.2 }     // 対流圏
+            ];
+
+            // 層の移動速度を2.5倍に増加
+            const layerOffset = -(gameState.rocketY / 25000) * ctx.canvas.height * 3;
+
+            // 各層を描画（下から順に描画して重ねる）
+            layers.forEach(layer => {
+                const baseY = ctx.canvas.height * layer.y - layerOffset;
+
+                // 地球の曲率を表現する円弧を描画
+                ctx.beginPath();
+                const radius = ctx.canvas.width * 1.5;
+                const centerArcY = baseY + radius + 100;
+
+                ctx.fillStyle = layer.color;
+                ctx.beginPath();
+                ctx.arc(centerX, centerArcY, radius, Math.PI, Math.PI * 2);
+                ctx.lineTo(ctx.canvas.width, ctx.canvas.height);
+                ctx.lineTo(0, ctx.canvas.height);
+                ctx.fill();
+            });
+
+            // 星を描画（上空ほど多く）
+            const starVisibility = Math.max(0, (gameState.rocketY / 25000));
+            if (starVisibility > 0) {
+                gameState.stars.forEach(star => {
+                    if (star.y < rocketY && Math.random() > 0.5) {
+                        const alpha = star.brightness * starVisibility;
+                        if (star.brightness > 0.9) {
+                            ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                            ctx.fillRect(star.x - 1, star.y, 3, 1);
+                            ctx.fillRect(star.x, star.y - 1, 1, 3);
+                        } else {
+                            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                            ctx.fillRect(star.x, star.y, 1, 1);
+                        }
+                    }
+                });
+            }
+
+            // ロケットを固定位置に描画
+            drawRocket(ctx, centerX, rocketY);
 
             // 情報表示
             drawPixelText(
@@ -715,12 +748,21 @@ const ClickGame: React.FC = () => {
                 50
             );
 
+            const layerNames = ['TROPOSPHERE', 'STRATOSPHERE', 'MESOSPHERE', 'THERMOSPHERE', 'EXOSPHERE', 'SPACE'];
+            const currentLayer = Math.min(Math.floor((gameState.rocketY / 25000) * layerNames.length), layerNames.length - 1);
+
             if (!gameState.isExploded) {
                 drawPixelText(
                     ctx,
-                    'MASH SPACE TO BREAK THROUGH!',
+                    layerNames[currentLayer],
                     centerX,
                     90
+                );
+                drawPixelText(
+                    ctx,
+                    'KEEP MASHING!',
+                    centerX,
+                    130
                 );
             } else {
                 drawPixelText(
