@@ -15,6 +15,8 @@ interface GameState {
     launchStartTime: number;
     isLaunching: boolean;
     shakeIntensity: number;
+    isLaunchSuccess: boolean;
+    atmosphereStartTime: number;
 }
 
 interface Particle {
@@ -67,7 +69,9 @@ const ClickGame: React.FC = () => {
         fullPowerTime: 0,
         launchStartTime: 0,
         isLaunching: false,
-        shakeIntensity: 0
+        shakeIntensity: 0,
+        isLaunchSuccess: false,
+        atmosphereStartTime: 0
     });
 
     useEffect(() => {
@@ -103,22 +107,31 @@ const ClickGame: React.FC = () => {
 
                     case 'launch':
                         if (Date.now() - gameState.launchStartTime >= 3000) {
-                            setGameState(prev => ({
-                                ...prev,
-                                isLaunching: true,
-                                rocketY: prev.rocketY + 5,
-                                shakeIntensity: Math.min(prev.shakeIntensity + 0.2, 8),
-                                scene: prev.rocketY >= 600 ? 'atmosphere' : 'launch'
-                            }));
+                            setGameState(prev => {
+                                const newShakeIntensity = Math.min(prev.shakeIntensity + 0.2, 8);
+                                const isMaxPower = newShakeIntensity >= 8;
+
+                                return {
+                                    ...prev,
+                                    isLaunching: true,
+                                    rocketY: prev.rocketY + 5,
+                                    shakeIntensity: newShakeIntensity,
+                                    isLaunchSuccess: isMaxPower ? true : prev.isLaunchSuccess,
+                                    atmosphereStartTime: isMaxPower ? Date.now() : prev.atmosphereStartTime,
+                                    scene: isMaxPower ? 'atmosphere' : 'launch'
+                                };
+                            });
                         }
                         break;
 
                     case 'atmosphere':
-                        setGameState(prev => ({
-                            ...prev,
-                            rocketY: prev.rocketY + 15,
-                            isExploded: prev.rocketY >= window.innerHeight
-                        }));
+                        if (Date.now() - gameState.atmosphereStartTime >= 3000) {
+                            setGameState(prev => ({
+                                ...prev,
+                                rocketY: prev.rocketY + 15,
+                                isExploded: prev.rocketY >= window.innerHeight
+                            }));
+                        }
                         break;
                 }
             }
@@ -126,7 +139,7 @@ const ClickGame: React.FC = () => {
 
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
-    }, [gameState.scene, gameState.launchStartTime]);
+    }, [gameState.scene, gameState.launchStartTime, gameState.atmosphereStartTime]);
 
     useEffect(() => {
         if (gameState.isFullPower) {
@@ -558,30 +571,165 @@ const ClickGame: React.FC = () => {
         if (gameState.isLaunching && gameState.shakeIntensity > 0) {
             ctx.restore();
         }
+
+        // Launch Success の表示
+        if (gameState.isLaunchSuccess) {
+            // 画面全体を明るくフラッシュ
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.3 + 0.1})`;
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+            // Launch Success テキスト
+            if (Math.floor(Date.now() / 100) % 2 === 0) {  // 早い点滅
+                drawPixelText(
+                    ctx,
+                    'LAUNCH SUCCESS!',
+                    centerX,
+                    ctx.canvas.height * 0.4,
+                    64
+                );
+            }
+        }
     };
 
     const drawAtmosphereScene = (ctx: CanvasRenderingContext2D, centerX: number) => {
-        // 大気圏のグラデーション
-        const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
-        gradient.addColorStop(0, '#000033');
-        gradient.addColorStop(0.3, '#000066');
-        gradient.addColorStop(0.6, '#3366CC');
-        gradient.addColorStop(0.8, '#66CCFF');
-        gradient.addColorStop(1, '#99FFFF');
+        const timeSinceStart = Date.now() - gameState.atmosphereStartTime;
 
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        if (timeSinceStart < 3000) {
+            // 最初の3秒は地上の背景を維持
+            ctx.fillStyle = '#111111';
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-        // ロケット
-        const rocketY = ctx.canvas.height - 150 - gameState.rocketY;
-        drawRocket(ctx, centerX, rocketY);
+            // 地面の描画
+            ctx.fillStyle = '#4A593D';
+            for (let x = 0; x < ctx.canvas.width; x += 8) {
+                const groundHeight = 100 + Math.sin(x * 0.05) * 10;
+                ctx.fillRect(x, ctx.canvas.height - groundHeight, 8, groundHeight);
+            }
 
-        // テキスト
-        drawPixelText(ctx, `ALTITUDE: ${Math.floor(gameState.rocketY)}m`, centerX, 50);
-        drawPixelText(ctx, 'BREAK THROUGH!', centerX, 90);
+            // 煙と炎のエフェクト（より雲のような見た目に）
+            // 中央の濃い煙（もこもこした雲のような）
+            for (let i = 0; i < 30; i++) {
+                const angle = (Math.random() * Math.PI) / 2 + Math.PI / 4;
+                const distance = Math.random() * 100;
+                const smokeBaseX = centerX + Math.cos(angle) * distance;
+                const smokeBaseY = ctx.canvas.height - 140 + Math.sin(angle) * distance;
 
-        if (gameState.isExploded) {
-            drawPixelText(ctx, 'MISSION COMPLETE!', centerX, ctx.canvas.height / 2, 32);
+                for (let j = 0; j < 3; j++) {
+                    const offsetX = Math.random() * 20 - 10;
+                    const offsetY = Math.random() * 20 - 10;
+                    const size = Math.random() * 20 + 15;
+
+                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.4 + 0.2})`;
+                    ctx.beginPath();
+                    ctx.arc(
+                        smokeBaseX + offsetX,
+                        smokeBaseY + offsetY + gameState.rocketY,
+                        size,
+                        0,
+                        Math.PI * 2
+                    );
+                    ctx.fill();
+                }
+            }
+
+            // ロケットを描画
+            drawRocket(ctx, centerX, ctx.canvas.height - 150 - gameState.rocketY);
+
+            // Launch Success の表示
+            // 画面全体を明るくフラッシュ
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.random() * 0.3 + 0.1})`;
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+            if (timeSinceStart < 1500) {  // 最初の1.5秒はLaunch Success
+                if (Math.floor(Date.now() / 100) % 2 === 0) {  // 早い点滅
+                    drawPixelText(
+                        ctx,
+                        'LAUNCH SUCCESS!',
+                        centerX,
+                        ctx.canvas.height * 0.5,  // 完全に中央に
+                        64
+                    );
+                }
+            } else {  // 残りの1.5秒でカウントダウン
+                const countdown = Math.ceil((3000 - timeSinceStart) / 1000);
+
+                if (Math.floor(Date.now() / 200) % 2 === 0) {
+                    drawPixelText(
+                        ctx,
+                        'PREPARE FOR',
+                        centerX,
+                        ctx.canvas.height * 0.4,
+                        32
+                    );
+
+                    drawPixelText(
+                        ctx,
+                        'ATMOSPHERE BREAK!',
+                        centerX,
+                        ctx.canvas.height * 0.4 + 50,
+                        32
+                    );
+
+                    drawPixelText(
+                        ctx,
+                        countdown.toString(),
+                        centerX,
+                        ctx.canvas.height * 0.6,
+                        96
+                    );
+                }
+            }
+        } else {
+            // 3秒後から徐々に大気圏の色に変化
+            const transitionProgress = Math.min((timeSinceStart - 3000) / 2000, 1);
+
+            // 大気圏のグラデーション（地上から成層圏へ）
+            const gradient = ctx.createLinearGradient(0, 0, 0, ctx.canvas.height);
+
+            if (transitionProgress < 1) {
+                // 地上の色から徐々に変化
+                gradient.addColorStop(0, `rgba(0, 0, 51, ${transitionProgress})`);
+                gradient.addColorStop(0.3, `rgba(0, 0, 102, ${transitionProgress})`);
+                gradient.addColorStop(0.6, `rgba(51, 102, 204, ${transitionProgress})`);
+                gradient.addColorStop(0.8, `rgba(102, 204, 255, ${transitionProgress})`);
+                gradient.addColorStop(1, `rgba(153, 255, 255, ${transitionProgress})`);
+
+                // 地上の背景を維持
+                ctx.fillStyle = '#111111';
+                ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            }
+
+            // グラデーションを描画
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+            // 通常の大気圏突入シーン
+            drawRocket(ctx, centerX, ctx.canvas.height - 150 - gameState.rocketY);
+
+            // 情報表示
+            drawPixelText(
+                ctx,
+                `ALTITUDE: ${Math.floor(gameState.rocketY)}m`,
+                centerX,
+                50
+            );
+
+            if (!gameState.isExploded) {
+                drawPixelText(
+                    ctx,
+                    'MASH SPACE TO BREAK THROUGH!',
+                    centerX,
+                    90
+                );
+            } else {
+                drawPixelText(
+                    ctx,
+                    'MISSION COMPLETE!',
+                    centerX,
+                    ctx.canvas.height / 2,
+                    48
+                );
+            }
         }
     };
 
