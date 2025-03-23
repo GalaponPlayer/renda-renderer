@@ -685,27 +685,33 @@ const ClickGame: React.FC = () => {
             ctx.fillStyle = '#000022';
             ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
-            // 星を描画（背景）
-            const starCount = 200;
+            // 星を描画（数を減らし、明滅も控えめに）
+            const starCount = 150;
             for (let i = 0; i < starCount; i++) {
                 const x = (gameState.stars[i]?.x || Math.random() * ctx.canvas.width);
                 const y = (gameState.stars[i]?.y || Math.random() * ctx.canvas.height);
                 const brightness = gameState.stars[i]?.brightness || Math.random();
 
+                // 明滅の頻度を下げ、変化も小さく
+                const flicker = Math.sin(Date.now() * 0.001 + i) * 0.1 + 0.9;
+
                 if (brightness > 0.8) {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${brightness * 0.9})`;
-                    ctx.fillRect(x - 1, y, 3, 1);
-                    ctx.fillRect(x, y - 1, 1, 3);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${brightness * 0.7 * flicker})`;
+                    ctx.fillRect(x - 1, y, 2, 1);
+                    ctx.fillRect(x, y - 1, 1, 2);
                 } else {
-                    ctx.fillStyle = `rgba(255, 255, 255, ${brightness * 0.7})`;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${brightness * 0.5 * flicker})`;
                     ctx.fillRect(x, y, 1, 1);
                 }
             }
 
-            // ロケットの固定位置（画面中央よりやや上）
-            const rocketY = ctx.canvas.height * 0.4;
+            // ロケットの位置を下方に移動し、進行に応じて上昇
+            const startY = ctx.canvas.height * 0.7; // 開始位置を画面下部に
+            const targetY = ctx.canvas.height * 0.4; // 最終的な位置
+            const progress = Math.min(gameState.rocketY / 5000, 1); // 初期の上昇をより早く
+            const rocketY = startY + (targetY - startY) * progress;
 
-            // 大気圏の層の定義
+            // 大気圏の層の定義（地球色を追加）
             const layers = [
                 { color: '#000044', y: 0, mixColor: '#000066' },      // 宇宙空間
                 { color: '#000088', y: 0.2, mixColor: '#0022AA' },    // 外気圏
@@ -713,12 +719,13 @@ const ClickGame: React.FC = () => {
                 { color: '#0066FF', y: 0.6, mixColor: '#4488FF' },    // 中間圏下部
                 { color: '#4488FF', y: 0.8, mixColor: '#66AAFF' },    // 成層圏上部
                 { color: '#99CCFF', y: 1.0, mixColor: '#AADDFF' },    // 成層圏下部
-                { color: '#FF99AA', y: 1.2, mixColor: '#FFAACC' }     // 対流圏
+                { color: '#FF99AA', y: 1.2, mixColor: '#FFAACC' },    // 対流圏
+                { color: '#4A593D', y: 1.4, mixColor: '#556B48' }     // 地球表面
             ];
 
             const layerOffset = -(gameState.rocketY / 25000) * ctx.canvas.height * 15;
 
-            // 各層を描画
+            // 各層を描画（他の部分は同じ）
             layers.forEach(layer => {
                 const baseY = ctx.canvas.height * layer.y - layerOffset;
 
@@ -730,9 +737,8 @@ const ClickGame: React.FC = () => {
 
                     ctx.beginPath();
                     ctx.fillStyle = i === 1 ? layer.color : layer.mixColor;
-                    ctx.globalAlpha = 0.7;  // 重ねる層を半透明に
+                    ctx.globalAlpha = 0.7;
 
-                    // 少しずつ異なる円弧を描画
                     ctx.arc(
                         centerX + Math.sin(Date.now() * 0.001 + i) * 10,
                         centerArcY,
@@ -744,10 +750,10 @@ const ClickGame: React.FC = () => {
                     ctx.lineTo(0, ctx.canvas.height);
                     ctx.fill();
                 }
-                ctx.globalAlpha = 1.0;  // 透明度をリセット
+                ctx.globalAlpha = 1.0;
             });
 
-            // ロケットを描画
+            // ロケットを描画（新しい位置で）
             drawRocket(ctx, centerX, rocketY);
 
             // 情報表示
