@@ -45,7 +45,7 @@ interface Cloud {
 
 const ClickGame: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
+    // const audioRef = useRef<HTMLAudioElement | null>(null);
     const [gameState, setGameState] = useState<GameState>({
         scene: 'power',
         power: 0,
@@ -213,7 +213,7 @@ const ClickGame: React.FC = () => {
 
     // 発射台描画関数を共通化
     const drawLaunchPad = (ctx: CanvasRenderingContext2D, centerX: number, baseY: number) => {
-        const padWidth = 160;
+        // const padWidth = 160;
         const padHeight = 200;
 
         // メインの支柱
