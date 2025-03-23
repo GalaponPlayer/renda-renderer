@@ -14,6 +14,7 @@ interface GameState {
     fullPowerTime: number;
     launchStartTime: number;
     isLaunching: boolean;
+    shakeIntensity: number;
 }
 
 interface Particle {
@@ -65,7 +66,8 @@ const ClickGame: React.FC = () => {
         isFullPower: false,
         fullPowerTime: 0,
         launchStartTime: 0,
-        isLaunching: false
+        isLaunching: false,
+        shakeIntensity: 0
     });
 
     useEffect(() => {
@@ -104,8 +106,9 @@ const ClickGame: React.FC = () => {
                             setGameState(prev => ({
                                 ...prev,
                                 isLaunching: true,
-                                rocketY: prev.rocketY + 10,
-                                scene: prev.rocketY >= 300 ? 'atmosphere' : 'launch'
+                                rocketY: prev.rocketY + 5,
+                                shakeIntensity: Math.min(prev.shakeIntensity + 0.2, 8),
+                                scene: prev.rocketY >= 600 ? 'atmosphere' : 'launch'
                             }));
                         }
                         break;
@@ -139,6 +142,19 @@ const ClickGame: React.FC = () => {
             return () => clearTimeout(timer);
         }
     }, [gameState.isFullPower]);
+
+    useEffect(() => {
+        if (gameState.isLaunching) {
+            const interval = setInterval(() => {
+                setGameState(prev => ({
+                    ...prev,
+                    shakeIntensity: Math.max(prev.shakeIntensity - 0.1, 0)
+                }));
+            }, 50);
+
+            return () => clearInterval(interval);
+        }
+    }, [gameState.isLaunching]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -364,6 +380,16 @@ const ClickGame: React.FC = () => {
     };
 
     const drawLaunchScene = (ctx: CanvasRenderingContext2D, centerX: number, baseY: number) => {
+        // 画面の揺れエフェクト
+        if (gameState.isLaunching && gameState.shakeIntensity > 0) {
+            ctx.save();
+            const shake = gameState.shakeIntensity;
+            ctx.translate(
+                Math.random() * shake * 2 - shake,
+                Math.random() * shake * 2 - shake
+            );
+        }
+
         // 地面の描画
         ctx.fillStyle = '#4A593D';
         for (let x = 0; x < ctx.canvas.width; x += 8) {
@@ -482,7 +508,7 @@ const ClickGame: React.FC = () => {
             }
         }
 
-        // 情報表示
+        // 情報表示をより詳細に
         drawPixelText(
             ctx,
             `HEIGHT: ${Math.floor(gameState.rocketY)}m`,
@@ -495,6 +521,43 @@ const ClickGame: React.FC = () => {
             centerX,
             90
         );
+
+        // パワー表示（揺れの強さに応じて）
+        const powerWidth = 200;
+        const powerHeight = 20;
+        const powerX = centerX - powerWidth / 2;
+        const powerY = 120;
+
+        // パワーゲージの背景
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(powerX - 2, powerY - 2, powerWidth + 4, powerHeight + 4);
+
+        // パワーゲージ（揺れの強さに応じて色が変化）
+        const powerRatio = gameState.shakeIntensity / 8;
+        const gradient = ctx.createLinearGradient(powerX, 0, powerX + powerWidth * powerRatio, 0);
+        gradient.addColorStop(0, '#FFFF00');
+        gradient.addColorStop(1, '#FF4400');
+
+        ctx.fillStyle = gradient;
+        ctx.fillRect(powerX, powerY, powerWidth * powerRatio, powerHeight);
+
+        // 警告表示（パワーが高いとき）
+        if (powerRatio > 0.8) {
+            if (Math.floor(Date.now() / 200) % 2 === 0) {
+                drawPixelText(
+                    ctx,
+                    'MAX POWER!',
+                    centerX,
+                    powerY + 40,
+                    24
+                );
+            }
+        }
+
+        // 画面の揺れをリセット
+        if (gameState.isLaunching && gameState.shakeIntensity > 0) {
+            ctx.restore();
+        }
     };
 
     const drawAtmosphereScene = (ctx: CanvasRenderingContext2D, centerX: number) => {
