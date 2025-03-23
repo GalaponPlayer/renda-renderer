@@ -699,8 +699,8 @@ const ClickGame: React.FC = () => {
                 { color: '#FF99AA', y: 1.2 }     // 対流圏
             ];
 
-            // 層の移動速度を2.5倍に増加
-            const layerOffset = -(gameState.rocketY / 25000) * ctx.canvas.height * 3;
+            // 層の移動速度を15倍に爆増
+            const layerOffset = -(gameState.rocketY / 25000) * ctx.canvas.height * 15;
 
             // 各層を描画（下から順に描画して重ねる）
             layers.forEach(layer => {
